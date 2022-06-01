@@ -1,0 +1,116 @@
+plugins {
+    id 'fabric-loom' version '0.10-SNAPSHOT'
+    id 'org.cadixdev.licenser' version '0.6.1'
+}
+
+apply plugin: 'maven-publish' // for uploading to a maven repo
+
+sourceCompatibility = JavaVersion.VERSION_17
+targetCompatibility = JavaVersion.VERSION_17
+
+archivesBaseName = "NetworkDrainCleaner"
+version = "1.0.0"
+
+license {
+    header = project.file('misc/LICENSE_HEADER.txt');
+    newLine = false;
+}
+
+minecraft {
+}
+
+repositories {
+    mavenLocal()
+    maven { name="AlexIIL"; url="https://maven.alexiil.uk/" }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:1.18.2"
+    mappings "net.fabricmc:yarn:1.18.2+build.1:v2"
+    modImplementation "net.fabricmc:fabric-loader:0.13.3"
+
+    //Fabric api
+    modImplementation "net.fabricmc.fabric-api:fabric-api:0.47.8+1.18.2"
+    modApi "alexiil.mc.lib:libnetworkstack-base:$libnetworkstack_version"
+
+    include "alexiil.mc.lib:libnetworkstack-base:$libnetworkstack_version"
+
+    // Misc
+    compileOnly "com.google.code.findbugs:jsr305:3.0.1"
+    testImplementation "junit:junit:4.12"
+}
+
+compileJava {
+    options.compilerArgs << "-Xmaxerrs" << "2000"
+    options.compilerArgs << "-Xmaxwarns" << "2"
+    options.compilerArgs << "-Xlint:all"
+    options.compilerArgs << "-Xdiags:verbose"
+}
+
+javadoc {
+    destinationDir file(new File(System.getenv("JAVADOC_DIR") ?: "$projectDir/build/javadoc", "$version"));
+    exclude "alexiil/mc/lib/net/mixin";
+    options.optionFiles << file('javadoc.options');
+}
+
+build.dependsOn(javadoc);
+
+// ensure that the encoding is set to UTF-8, no matter what the system default is
+// this fixes some edge cases with special characters not displaying correctly
+// see http://yodaconditions.net/blog/fix-for-java-file-encoding-problems-with-gradle.html
+tasks.withType(JavaCompile) {
+    options.encoding = "UTF-8"
+
+    // Minecraft 1.18 upwards uses Java 17.
+    it.options.release = 17
+}
+
+// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
+// if it is present.
+// If you remove this task, sources will not be generated.
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+publishing {
+    repositories {
+        maven {
+            url System.getenv("MAVEN_DIR") ?: "$projectDir/build/maven"
+        }
+    }
+}
+
+// #####################
+//
+// Extra jar section
+//
+// #####################
+
+apply from: "extra_jar_def.gradle"
+
+ext.mainName = "networkdraincleaner"
+ext.mavenGroupId = "alexiil.mc.mod";
+
+ext.extra_jar_def__optimised_compression = true;
+ext.extra_jar_def__decompress_external_included = true;
+ext.extra_jar_def__common_manifest.put(null, ['Sealed': 'true']);
+ext.extra_jar_def__fabric_mod_json_replacements = [
+  ["\$version", project.version],
+  ["\$libnetworkstack_version", "$libnetworkstack_version"]
+];
+
+def allIncludes = [
+    "assets/network_drain_cleaner/icon.png"
+];
+
+def jarDeps = [ 
+    ["alexiil.mc.lib", "libnetworkstack-base", "$libnetworkstack_version"]
+];
+
+generateJar("base", ["**"], [], true, [], [], [], jarDeps);
+
+tasks.withType(AbstractArchiveTask) {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}

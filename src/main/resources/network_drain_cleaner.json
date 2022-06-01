@@ -1,0 +1,10 @@
+{
+  "required": true,
+  "package": "alexiil.mc.mod.util.netclean.mixin.mx",
+  "compatibilityLevel": "JAVA_8",
+  "client": [
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

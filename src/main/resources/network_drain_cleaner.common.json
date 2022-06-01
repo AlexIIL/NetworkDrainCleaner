@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "alexiil.mc.mod.util.netclean.mixin.mxl",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "ClientConnection_1_Mixin",
+    "ServerNetworkIo_1_Mixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
