@@ -9,7 +9,7 @@ sourceCompatibility = JavaVersion.VERSION_17
 targetCompatibility = JavaVersion.VERSION_17
 
 archivesBaseName = "NetworkDrainCleaner"
-version = "1.0.28"
+version = "1.1.0"
 
 license {
     header = project.file('misc/LICENSE_HEADER.txt');
