@@ -14,13 +14,9 @@ import io.netty.buffer.ByteBuf;
 import net.fabricmc.fabric.api.network.PacketContext;
 
 import net.minecraft.network.ClientConnection;
-import net.minecraft.network.DecoderHandler;
 import net.minecraft.network.NetworkSide;
 import net.minecraft.network.NetworkState;
 import net.minecraft.network.Packet;
-import net.minecraft.network.PacketEncoder;
-import net.minecraft.network.SizePrepender;
-import net.minecraft.network.SplitterHandler;
 
 import alexiil.mc.lib.net.ActiveConnection;
 import alexiil.mc.lib.net.EnumNetSide;
@@ -38,12 +34,13 @@ public class MinecraftBaseConnection extends ActiveConnection {
 
     static {
         BASE_ROOT = new ParentNetId(null, "MinecraftBaseConnection");
-        MC_PACKET = BASE_ROOT.idData("standard_minecraft_packet")
+        MC_PACKET = BASE_ROOT.idData("standard_minecraft_packet").withLargeSize()
             .setReceiver((buffer, ctx) -> ((MinecraftBaseConnection) ctx.getConnection()).readMcPacket(buffer, ctx));
     }
 
     public final EnumNetSide side;
-    public final NetCleanMessageHandler messageHandler;
+    public final NetCleanEncoder encoder;
+    public final NetCleanDecoder decoder;
 
     // Network State
     public List<Object> packetsOut = null;
@@ -52,25 +49,24 @@ public class MinecraftBaseConnection extends ActiveConnection {
     public MinecraftBaseConnection(EnumNetSide side) {
         super(BASE_ROOT);
         this.side = side;
-        this.messageHandler = new NetCleanMessageHandler(this);
+        encoder = new NetCleanEncoder(this);
+        decoder = new NetCleanDecoder(this);
     }
 
-    private void initMcConnection() {
-        // ReadTimeoutHandler rth = null; // Ignored
-        // LegacyQueryHandler lqh = null; // Removed
-
-        // Decoding
-        SplitterHandler sh = null;
-        DecoderHandler dh = null;
-
-        // Encoding
-        SizePrepender sp = null;
-        PacketEncoder pe = null;
+    @Override
+    protected boolean isDebuggingConnection() {
+        // Sadly stacktraces are useless, since packets are only ever sent to us on a netty thread.
+        return false;
     }
 
     @Override
     public PacketContext getMinecraftContext() {
         throw new UnsupportedOperationException("This is not a normal minecraft connection!");
+    }
+
+    @Override
+    public EnumNetSide getNetSide() {
+        return side;
     }
 
     @Override
@@ -91,8 +87,7 @@ public class MinecraftBaseConnection extends ActiveConnection {
     protected void writeMcPacket(Packet<?> pkt) {
         MC_PACKET.send(this, (buffer, ctx) -> {
 
-            NetworkState networkState
-                = messageHandler.nettyCtx.channel().attr(ClientConnection.PROTOCOL_ATTRIBUTE_KEY).get();
+            NetworkState networkState = decoder.nettyCtx.channel().attr(ClientConnection.PROTOCOL_ATTRIBUTE_KEY).get();
 
             NetworkSide netSide = side == EnumNetSide.SERVER ? NetworkSide.CLIENTBOUND : NetworkSide.SERVERBOUND;
             Integer packetId = networkState.getPacketId(netSide, pkt);
@@ -103,20 +98,28 @@ public class MinecraftBaseConnection extends ActiveConnection {
                 );
             }
 
-            buffer.writeMarker("Packet ID");
+            buffer.writeMarker("MC Packet ID");
             buffer.writeVarInt(packetId);
-            buffer.writeMarker("Packet Payload");
+            buffer.writeMarker("MC Payload Length");
+            int wi = buffer.writerIndex();
+            buffer.writeInt(0); // We come back to modify this after writing
+            buffer.writeMarker("MC Packet Payload");
+            int start = buffer.writerIndex();
             pkt.write(buffer);
+            int end = buffer.writerIndex();
+            int len = end - start;
+            buffer.setInt(wi, len);
         });
     }
 
     protected void readMcPacket(NetByteBuf buffer, IMsgReadCtx ctx) throws InvalidInputDataException {
-        buffer.readMarker("Packet ID");
+        buffer.readMarker("MC Packet ID");
         int type = buffer.readVarInt();
-        buffer.readMarker("Packet Payload");
+        buffer.readMarker("MC Payload Length");
+        int len = buffer.readInt();
+        buffer.readMarker("MC Packet Payload");
 
-        NetworkState networkState
-            = messageHandler.nettyCtx.channel().attr(ClientConnection.PROTOCOL_ATTRIBUTE_KEY).get();
+        NetworkState networkState = decoder.nettyCtx.channel().attr(ClientConnection.PROTOCOL_ATTRIBUTE_KEY).get();
 
         NetworkSide netSide = side == EnumNetSide.CLIENT ? NetworkSide.CLIENTBOUND : NetworkSide.SERVERBOUND;
         packetsOut.add(networkState.getPacketHandler(netSide, type, buffer));

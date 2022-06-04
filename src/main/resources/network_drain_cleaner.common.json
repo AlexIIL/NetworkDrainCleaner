@@ -1,6 +1,6 @@
 {
   "required": true,
-  "package": "alexiil.mc.mod.util.netclean.mixin.mxl",
+  "package": "alexiil.mc.mod.util.netclean.mixin.mx",
   "compatibilityLevel": "JAVA_8",
   "mixins": [
     "ClientConnection_1_Mixin",

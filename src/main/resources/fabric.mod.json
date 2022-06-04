@@ -7,7 +7,6 @@
   "environment": "*",
   "entrypoints": {
     "main": [
-      "alexiil.mc.mod.util.NetworkDrainCleaner"
     ],
     "client": [
     ]

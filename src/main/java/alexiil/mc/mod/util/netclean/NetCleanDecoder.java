@@ -11,19 +11,21 @@ import java.util.List;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.ByteToMessageCodec;
+import io.netty.handler.codec.ByteToMessageDecoder;
 
-import net.minecraft.network.Packet;
+import net.minecraft.network.ClientConnection;
+import net.minecraft.text.LiteralText;
 
 import alexiil.mc.lib.net.InternalMsgUtil;
 import alexiil.mc.lib.net.NetByteBuf;
 
-public class NetCleanMessageHandler extends ByteToMessageCodec<Packet<?>> {
+public class NetCleanDecoder extends ByteToMessageDecoder {
 
     public final MinecraftBaseConnection connection;
     public ChannelHandlerContext nettyCtx;
+    public ClientConnection mcConnection;
 
-    public NetCleanMessageHandler(MinecraftBaseConnection connection) {
+    public NetCleanDecoder(MinecraftBaseConnection connection) {
         this.connection = connection;
     }
 
@@ -31,16 +33,7 @@ public class NetCleanMessageHandler extends ByteToMessageCodec<Packet<?>> {
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         super.channelActive(ctx);
         this.nettyCtx = ctx;
-    }
-
-    @Override
-    protected void encode(ChannelHandlerContext ctx, Packet<?> msg, ByteBuf out) throws Exception {
-        try {
-            connection.byteBufOut = out;
-            connection.writeMcPacket(msg);
-        } finally {
-            connection.byteBufOut = null;
-        }
+        this.mcConnection = (ClientConnection) ctx.pipeline().get("packet_handler");
     }
 
     @Override
@@ -48,6 +41,10 @@ public class NetCleanMessageHandler extends ByteToMessageCodec<Packet<?>> {
         try {
             connection.packetsOut = out;
             InternalMsgUtil.onReceive(connection, NetByteBuf.asNetByteBuf(in));
+        } catch (Throwable t) {
+            t.printStackTrace();
+            mcConnection.disconnect(new LiteralText("NetworkDrainCleaner: decode error (see logs for details)"));
+            throw t;
         } finally {
             connection.packetsOut = null;
         }
